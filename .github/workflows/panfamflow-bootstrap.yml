@@ -1,0 +1,110 @@
+name: Bootstrap PanFamFlow feature branch
+
+on:
+  push:
+    branches:
+      - feature/panfamflow-v0.1.0
+    paths:
+      - "_staging/**"
+      - ".github/workflows/panfamflow-bootstrap.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout staging commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Extract staged project safely
+        run: |
+          python3 - <<'PY'
+          import base64
+          import hashlib
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          root = Path.cwd().resolve()
+          archive = Path("/tmp/panfamflow-staging.zip")
+          encoded_with_whitespace = "".join(
+              part.read_text(encoding="ascii")
+              for part in sorted((root / "_staging").glob("part-*"))
+          )
+          encoded = "".join(encoded_with_whitespace.split())
+          payload = base64.b64decode(encoded, validate=True)
+          expected_sha256 = "d70e5c6995f022ddfdd036b341ef8cf35861f4d7f24fc4c9640db1f45c43e32e"
+          actual_sha256 = hashlib.sha256(payload).hexdigest()
+          if actual_sha256 != expected_sha256:
+              raise RuntimeError(
+                  f"Staging archive SHA256 mismatch: {actual_sha256} != {expected_sha256}"
+              )
+          archive.write_bytes(payload)
+          with ZipFile(archive) as handle:
+              corrupt_member = handle.testzip()
+              if corrupt_member is not None:
+                  raise RuntimeError(f"Corrupt ZIP member: {corrupt_member}")
+              for member in handle.infolist():
+                  target = (root / member.filename).resolve()
+                  if not target.is_relative_to(root):
+                      raise RuntimeError(f"Unsafe archive member: {member.filename}")
+              handle.extractall(root)
+          PY
+          rm -rf _staging
+          rm -f .github/workflows/panfamflow-bootstrap.yml
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.3"
+          enable-cache: true
+          cache-dependency-glob: "PanFamFlow/uv.lock"
+
+      - name: Install Python and resolve lockfile
+        working-directory: PanFamFlow
+        run: |
+          uv python install 3.12
+          uv lock
+          uv sync --locked --dev
+
+      - name: Format and lint
+        working-directory: PanFamFlow
+        run: |
+          uv run ruff format .
+          uv run ruff check --fix .
+          uv run ruff format .
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Type check and unit tests
+        working-directory: PanFamFlow
+        run: |
+          uv run mypy src/panfamflow
+          uv run pytest -q
+
+      - name: Build package
+        working-directory: PanFamFlow
+        run: uv build
+
+      - name: Validate CLI and Snakemake DAG
+        working-directory: PanFamFlow
+        run: |
+          uv run panfamflow validate -c examples/toy/config.yaml -m qc
+          uv run --with 'snakemake==9.25.1' snakemake \
+            --snakefile "${GITHUB_WORKSPACE}/PanFamFlow/src/panfamflow/workflow/Snakefile" \
+            --configfile "${GITHUB_WORKSPACE}/PanFamFlow/examples/toy/config.yaml" \
+            --directory "${GITHUB_WORKSPACE}/PanFamFlow/examples/toy" \
+            --cores 2 \
+            --dry-run \
+            results/00_qc/qc.done
+
+      - name: Commit verified project
+        run: |
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: add PanFamFlow v0.1.0-alpha"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

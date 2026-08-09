@@ -13,23 +13,23 @@ permissions:
   contents: write
 
 jobs:
-  bootstrap-and-verify:
+  decode-staging-diagnostics:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout staging commit
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Extract staged project safely
+      - name: Decode staged Base64 streams
         run: |
           python3 - <<'PY'
           import base64
           import hashlib
-          from io import BytesIO
+          import json
           from pathlib import Path
-          from zipfile import BadZipFile, ZipFile
 
           root = Path.cwd().resolve()
-          archive = Path("/tmp/panfamflow-staging.zip")
+          output = root / "_diagnostics"
+          output.mkdir()
           parts = sorted((root / "_staging").glob("part-*"))
           if not parts:
               raise RuntimeError("No staging parts were found")
@@ -39,15 +39,8 @@ jobs:
               for part in parts
           ]
           encoded = "".join(part_texts)
-          cumulative_boundaries: list[int] = []
-          cumulative = 0
-          for text in part_texts[:-1]:
-              cumulative += len(text)
-              cumulative_boundaries.append(cumulative)
 
-          # The payload was staged as multiple independently Base64-encoded
-          # binary streams. Find complete padding runs and decode each stream.
-          stream_ranges: list[tuple[int, int]] = []
+          ranges: list[tuple[int, int]] = []
           start = 0
           index = 0
           while index < len(encoded):
@@ -57,148 +50,66 @@ jobs:
               end = index
               while end + 1 < len(encoded) and encoded[end + 1] == "=":
                   end += 1
-              stream_ranges.append((start, end + 1))
+              ranges.append((start, end + 1))
               start = end + 1
               index = end + 1
           if start < len(encoded):
-              stream_ranges.append((start, len(encoded)))
+              ranges.append((start, len(encoded)))
 
-          streams = [encoded[left:right] for left, right in stream_ranges]
-          expected_sha256 = "d70e5c6995f022ddfdd036b341ef8cf35861f4d7f24fc4c9640db1f45c43e32e"
-
-          def decode_strict(text: str) -> bytes:
-              if len(text) % 4:
-                  text += "=" * (-len(text) % 4)
-              return base64.b64decode(text, validate=True)
-
-          def is_valid_zip(payload: bytes) -> bool:
-              try:
-                  with ZipFile(BytesIO(payload)) as handle:
-                      return handle.testzip() is None
-              except (BadZipFile, OSError, ValueError):
-                  return False
-
-          # A single duplicated Base64 character was introduced at a staging
-          # file boundary in the second stream. Search only boundary-adjacent
-          # positions, require the original archive SHA256, then CRC-test every
-          # member. This is deterministic and refuses heuristic extraction.
-          if len(streams) != 2:
-              raise RuntimeError(f"Expected two Base64 streams, found {len(streams)}")
-
-          first_payload = decode_strict(streams[0])
-          second_stream = streams[1]
-          second_start = stream_ranges[1][0]
-
-          candidate_positions: set[int] = set()
-          for boundary in cumulative_boundaries:
-              relative = boundary - second_start
-              for delta in range(-8, 9):
-                  position = relative + delta
-                  if 0 <= position < len(second_stream):
-                      candidate_positions.add(position)
-          candidate_positions.update(range(min(16, len(second_stream))))
-          candidate_positions.update(
-              range(max(0, len(second_stream) - 16), len(second_stream))
-          )
-
-          payload: bytes | None = None
-          repaired_position: int | None = None
-          for position in sorted(candidate_positions):
-              repaired_stream = second_stream[:position] + second_stream[position + 1 :]
-              try:
-                  candidate = first_payload + decode_strict(repaired_stream)
-              except ValueError:
-                  continue
-              if hashlib.sha256(candidate).hexdigest() != expected_sha256:
-                  continue
-              if not is_valid_zip(candidate):
-                  raise RuntimeError(
-                      "Archive matched the expected SHA256 but failed ZIP CRC validation"
-                  )
-              payload = candidate
-              repaired_position = position
-              break
-
-          if payload is None:
-              raise RuntimeError(
-                  "Unable to reconstruct the staged archive at a known file boundary; "
-                  f"stream_lengths={[len(stream) for stream in streams]}, "
-                  f"candidate_positions={len(candidate_positions)}"
+          decoded: list[bytes] = []
+          metadata: dict[str, object] = {
+              "part_names": [part.name for part in parts],
+              "part_lengths": [len(text) for text in part_texts],
+              "encoded_total_length": len(encoded),
+              "stream_ranges": ranges,
+              "streams": [],
+          }
+          for number, (left, right) in enumerate(ranges, start=1):
+              stream = encoded[left:right]
+              if len(stream) % 4:
+                  stream += "=" * (-len(stream) % 4)
+              payload = base64.b64decode(stream, validate=True)
+              decoded.append(payload)
+              path = output / f"stream-{number:02d}.bin"
+              path.write_bytes(payload)
+              metadata["streams"].append(
+                  {
+                      "number": number,
+                      "encoded_length": right - left,
+                      "decoded_length": len(payload),
+                      "sha256": hashlib.sha256(payload).hexdigest(),
+                      "prefix_hex": payload[:64].hex(),
+                      "suffix_hex": payload[-64:].hex(),
+                      "local_headers": payload.count(b"PK\x03\x04"),
+                      "central_headers": payload.count(b"PK\x01\x02"),
+                      "eocd_headers": payload.count(b"PK\x05\x06"),
+                  }
               )
 
-          print(
-              "Reconstructed staging archive: "
-              f"sha256={expected_sha256}, repaired_second_stream_position={repaired_position}"
+          combined = b"".join(decoded)
+          (output / "combined.bin").write_bytes(combined)
+          metadata["combined"] = {
+              "decoded_length": len(combined),
+              "sha256": hashlib.sha256(combined).hexdigest(),
+              "local_headers": combined.count(b"PK\x03\x04"),
+              "central_headers": combined.count(b"PK\x01\x02"),
+              "eocd_headers": combined.count(b"PK\x05\x06"),
+          }
+          (output / "metadata.json").write_text(
+              json.dumps(metadata, indent=2), encoding="utf-8"
           )
-          archive.write_bytes(payload)
-          with ZipFile(archive) as handle:
-              for member in handle.infolist():
-                  target = (root / member.filename).resolve()
-                  if not target.is_relative_to(root):
-                      raise RuntimeError(f"Unsafe archive member: {member.filename}")
-              handle.extractall(root)
+          print(json.dumps(metadata, indent=2))
           PY
-          rm -rf _staging
-          rm -f .github/workflows/panfamflow-bootstrap.yml
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
-        with:
-          version: "0.12.3"
-          enable-cache: true
-          cache-dependency-glob: "PanFamFlow/uv.lock"
-
-      - name: Install Python and resolve lockfile
-        working-directory: PanFamFlow
-        run: |
-          uv python install 3.12
-          uv lock
-          uv sync --locked --dev
-
-      - name: Format and lint
-        working-directory: PanFamFlow
-        run: |
-          uv run ruff format .
-          uv run ruff check --fix .
-          uv run ruff format .
-          uv run ruff check .
-          uv run ruff format --check .
-
-      - name: Type check and unit tests
-        working-directory: PanFamFlow
-        run: |
-          uv run mypy src/panfamflow
-          uv run pytest -q
-
-      - name: Build package
-        working-directory: PanFamFlow
-        run: uv build
-
-      - name: Validate CLI and Snakemake DAG
-        working-directory: PanFamFlow
-        run: |
-          uv run panfamflow validate -c examples/toy/config.yaml -m qc
-          uv run --with 'snakemake==9.25.1' snakemake \
-            --snakefile "${GITHUB_WORKSPACE}/PanFamFlow/src/panfamflow/workflow/Snakefile" \
-            --configfile "${GITHUB_WORKSPACE}/PanFamFlow/examples/toy/config.yaml" \
-            --directory "${GITHUB_WORKSPACE}/PanFamFlow/examples/toy" \
-            --cores 2 \
-            --dry-run \
-            results/00_qc/qc.done
-
-      - name: Upload verified source snapshot
+      - name: Upload staging diagnostics
         uses: actions/upload-artifact@v4
         with:
-          name: panfamflow-v0.1.0-verified-source
-          path: PanFamFlow
+          name: panfamflow-staging-diagnostics
+          path: _diagnostics
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 7
 
-      - name: Commit verified project
+      - name: Stop after diagnostic snapshot
         run: |
-          git diff --check
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "feat: add PanFamFlow v0.1.0-alpha"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          echo "Diagnostic artifact uploaded; reconstruction will be repaired in the next commit."
+          exit 1

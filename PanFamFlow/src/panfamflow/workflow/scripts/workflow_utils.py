@@ -1,7 +1,5 @@
 """Small, dependency-light helpers shared by Snakemake scripts."""
 
-from __future__ import annotations
-
 import gzip
 import hashlib
 import json

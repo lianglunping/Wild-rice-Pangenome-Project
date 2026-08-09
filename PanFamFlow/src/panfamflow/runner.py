@@ -129,6 +129,10 @@ def build_snakemake_command(
     if dag:
         command.append("--dag")
     command.extend(config.run.extra_snakemake_args)
+    # ``--rerun-triggers`` accepts multiple values. Without the standard
+    # option terminator, argparse can consume the first workflow target as
+    # another trigger. Delimit all positional targets explicitly.
+    command.append("--")
     command.extend(targets)
     return command, stack
 

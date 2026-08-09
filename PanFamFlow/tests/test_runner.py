@@ -72,7 +72,8 @@ def test_mtime_only_resume_uses_single_trigger() -> None:
     with stack:
         index = command.index("--rerun-triggers")
         assert command[index + 1] == "mtime"
-        assert command[index + 2].startswith("results/")
+        assert command[index + 2] == "--"
+        assert command[index + 3].startswith("results/")
 
 
 def test_parse_snakemake_summary() -> None:

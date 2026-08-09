@@ -29,18 +29,31 @@ jobs:
 
           root = Path.cwd().resolve()
           archive = Path("/tmp/panfamflow-staging.zip")
-          encoded_with_whitespace = "".join(
-              part.read_text(encoding="ascii")
-              for part in sorted((root / "_staging").glob("part-*"))
-          )
-          encoded = "".join(encoded_with_whitespace.split())
-          payload = base64.b64decode(encoded, validate=True)
+          parts = sorted((root / "_staging").glob("part-*"))
+          if not parts:
+              raise RuntimeError("No staging parts were found")
+
+          # Each staging file was split on a 4-character Base64 boundary and may
+          # therefore contain its own terminal padding. Decode each part first,
+          # then concatenate the binary chunks. Concatenating the Base64 text
+          # directly causes `Excess data after padding`.
+          decoded_parts: list[bytes] = []
+          for part in parts:
+              encoded = "".join(part.read_text(encoding="ascii").split())
+              if len(encoded) % 4 != 0:
+                  raise RuntimeError(
+                      f"Invalid Base64 length for {part.name}: {len(encoded)}"
+                  )
+              decoded_parts.append(base64.b64decode(encoded, validate=True))
+
+          payload = b"".join(decoded_parts)
           expected_sha256 = "d70e5c6995f022ddfdd036b341ef8cf35861f4d7f24fc4c9640db1f45c43e32e"
           actual_sha256 = hashlib.sha256(payload).hexdigest()
           if actual_sha256 != expected_sha256:
               raise RuntimeError(
                   f"Staging archive SHA256 mismatch: {actual_sha256} != {expected_sha256}"
               )
+
           archive.write_bytes(payload)
           with ZipFile(archive) as handle:
               corrupt_member = handle.testzip()
@@ -99,6 +112,14 @@ jobs:
             --cores 2 \
             --dry-run \
             results/00_qc/qc.done
+
+      - name: Upload verified source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: panfamflow-v0.1.0-verified-source
+          path: PanFamFlow
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Commit verified project
         run: |

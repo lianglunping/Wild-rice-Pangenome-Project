@@ -1,0 +1,114 @@
+name: PanFamFlow CI
+
+on:
+  pull_request:
+    paths:
+      - "PanFamFlow/**"
+      - ".github/workflows/panfamflow-ci.yml"
+  push:
+    branches:
+      - main
+      - feature/panfamflow-v0.1.1-resume
+    paths:
+      - "PanFamFlow/**"
+      - ".github/workflows/panfamflow-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: panfamflow-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-scope-and-resume:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: PanFamFlow
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Verify repository materialization and scope
+        working-directory: .
+        run: |
+          set -euo pipefail
+          test -f PanFamFlow/pyproject.toml
+          test -f PanFamFlow/src/panfamflow/workflow/rules/pan_family.smk
+          test -f PanFamFlow/docs/SCOPE.md
+          test ! -e _panfamflow_publish
+          test ! -e _panfamflow_staging
+          grep -q '^# PanFamFlow — 泛基因家族分析流程' PanFamFlow/README.md
+          grep -q '不是泛基因组组装流程' PanFamFlow/README.md
+          grep -q '^pan_family:$' PanFamFlow/src/panfamflow/templates/config.yaml
+          ! grep -q '^pangenome:$' PanFamFlow/src/panfamflow/templates/config.yaml
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.3"
+          enable-cache: true
+          cache-dependency-glob: "PanFamFlow/uv.lock"
+
+      - name: Sync locked Python environment
+        run: |
+          uv python install 3.12
+          uv sync --locked --dev
+
+      - name: Static checks, tests and build
+        run: |
+          set -euo pipefail
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run mypy src/panfamflow
+          uv run pytest -q
+          uv build
+
+      - name: CLI scope and DAG checks
+        run: |
+          set -euo pipefail
+          uv run panfamflow --version
+          uv run panfamflow list-modules | tee /tmp/panfamflow-modules.txt
+          grep -q 'pan_family' /tmp/panfamflow-modules.txt
+          ! grep -qE '(^|[[:space:]])pangenome([[:space:]]|$)' /tmp/panfamflow-modules.txt
+          uv run panfamflow validate -c examples/toy/config.yaml -m qc
+          uv run panfamflow plan -c examples/toy/config.yaml -m pan_family
+          uv run --with 'snakemake==9.25.1' snakemake \
+            --snakefile "${GITHUB_WORKSPACE}/PanFamFlow/src/panfamflow/workflow/Snakefile" \
+            --configfile "${GITHUB_WORKSPACE}/PanFamFlow/examples/toy/config.yaml" \
+            --directory "${GITHUB_WORKSPACE}/PanFamFlow/examples/toy" \
+            --cores 2 \
+            --dry-run \
+            results/00_qc/qc.done
+
+      - name: Smart-resume integration test
+        run: |
+          set -euo pipefail
+          rm -rf examples/toy/{results,work,logs,.snakemake,.panfamflow}
+          run_qc() {
+            uv run --with 'snakemake==9.25.1' panfamflow run \
+              -c examples/toy/config.yaml -m qc
+          }
+          run_qc
+          audit='examples/toy/results/00_qc/input_audit.tsv'
+          done_file='examples/toy/results/00_qc/qc.done'
+          test -s "$audit" && test -s "$done_file"
+          audit_sha=$(sha256sum "$audit" | awk '{print $1}')
+          audit_mtime=$(stat -c %Y "$audit")
+          done_sha=$(sha256sum "$done_file" | awk '{print $1}')
+          done_mtime=$(stat -c %Y "$done_file")
+          sleep 1
+          run_qc
+          test "$audit_sha" = "$(sha256sum "$audit" | awk '{print $1}')"
+          test "$audit_mtime" = "$(stat -c %Y "$audit")"
+          test "$done_sha" = "$(sha256sum "$done_file" | awk '{print $1}')"
+          test "$done_mtime" = "$(stat -c %Y "$done_file")"
+          rm "$done_file"
+          sleep 1
+          run_qc
+          test -s "$done_file"
+          test "$audit_sha" = "$(sha256sum "$audit" | awk '{print $1}')"
+          test "$audit_mtime" = "$(stat -c %Y "$audit")"

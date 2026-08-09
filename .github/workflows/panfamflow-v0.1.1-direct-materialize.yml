@@ -1,0 +1,321 @@
+name: Directly materialize and verify PanFamFlow source
+
+on:
+  push:
+    branches:
+      - feature/panfamflow-v0.1.1-resume
+    paths:
+      - ".github/workflows/panfamflow-v0.1.1-direct-materialize.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: panfamflow-v0.1.1-direct-materialize
+  cancel-in-progress: false
+
+jobs:
+  materialize-verify-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact feature branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct versioned source archive safely
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64
+          import hashlib
+          import io
+          import lzma
+          import shutil
+          import stat
+          import tarfile
+          from pathlib import Path, PurePosixPath
+
+          root = Path.cwd().resolve()
+          staging = root / "_panfamflow_staging"
+          parts = sorted(staging.glob("part-*"))
+          if not parts:
+              raise RuntimeError("No _panfamflow_staging/part-* files were found")
+
+          encoded = "".join(
+              "".join(part.read_text(encoding="ascii").split()) for part in parts
+          )
+          if len(encoded) % 4:
+              raise RuntimeError(
+                  f"Concatenated Base64 length is not divisible by four: {len(encoded)}"
+              )
+          payload = base64.b64decode(encoded, validate=True)
+          if not payload.startswith(b"\xfd7zXZ\x00"):
+              raise RuntimeError(f"Staging payload is not XZ data: {payload[:16]!r}")
+          print(
+              "staging_xz_sha256="
+              + hashlib.sha256(payload).hexdigest()
+              + f" bytes={len(payload)} parts={len(parts)}"
+          )
+
+          tar_bytes = lzma.decompress(payload)
+          print(
+              "staging_tar_sha256="
+              + hashlib.sha256(tar_bytes).hexdigest()
+              + f" bytes={len(tar_bytes)}"
+          )
+
+          project = root / "PanFamFlow"
+          if project.exists():
+              shutil.rmtree(project)
+
+          with tarfile.open(fileobj=io.BytesIO(tar_bytes), mode="r:") as handle:
+              members = handle.getmembers()
+              if not members:
+                  raise RuntimeError("Staging tar archive is empty")
+              for member in members:
+                  logical = PurePosixPath(member.name)
+                  if logical.is_absolute() or ".." in logical.parts:
+                      raise RuntimeError(f"Unsafe archive path: {member.name}")
+                  if not logical.parts or logical.parts[0] != "PanFamFlow":
+                      raise RuntimeError(f"Archive member is outside PanFamFlow/: {member.name}")
+                  if member.issym() or member.islnk() or stat.S_ISLNK(member.mode):
+                      raise RuntimeError(f"Links are not allowed in source archive: {member.name}")
+                  target = (root / member.name).resolve()
+                  if not target.is_relative_to(root):
+                      raise RuntimeError(f"Archive member escapes repository: {member.name}")
+              handle.extractall(root)
+
+          required = [
+              project / "pyproject.toml",
+              project / "README.md",
+              project / "docs" / "SCOPE.md",
+              project / "src" / "panfamflow" / "cli.py",
+              project / "src" / "panfamflow" / "config.py",
+              project / "src" / "panfamflow" / "workflow" / "Snakefile",
+              project / "src" / "panfamflow" / "workflow" / "rules" / "pan_family.smk",
+              project / "tests" / "test_config.py",
+              project / "uv.lock",
+          ]
+          missing = [str(path) for path in required if not path.is_file()]
+          if missing:
+              raise RuntimeError(f"Source archive is incomplete; missing: {missing}")
+
+          readme = (project / "README.md").read_text(encoding="utf-8")
+          if not readme.startswith("# PanFamFlow — 泛基因家族分析流程"):
+              raise RuntimeError("README title does not identify a pan-gene-family workflow")
+          if "不是泛基因组组装流程" not in readme:
+              raise RuntimeError("README does not explicitly exclude pangenome assembly")
+          template = (project / "src/panfamflow/templates/config.yaml").read_text(
+              encoding="utf-8"
+          )
+          if "\npan_family:\n" not in template or "\npangenome:\n" in template:
+              raise RuntimeError("Canonical config scope is not pan_family-only")
+          PY
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.3"
+          enable-cache: true
+          cache-dependency-glob: "PanFamFlow/uv.lock"
+
+      - name: Sync locked Python environment
+        working-directory: PanFamFlow
+        run: |
+          set -euo pipefail
+          uv python install 3.12
+          uv sync --locked --dev
+
+      - name: Static checks, tests and package build
+        working-directory: PanFamFlow
+        run: |
+          set -euo pipefail
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run mypy src/panfamflow
+          uv run pytest -q
+          uv build
+
+      - name: Validate CLI and Snakemake DAG
+        working-directory: PanFamFlow
+        run: |
+          set -euo pipefail
+          uv run panfamflow --version
+          uv run panfamflow list-modules
+          uv run panfamflow validate -c examples/toy/config.yaml -m qc
+          uv run panfamflow plan -c examples/toy/config.yaml -m pan_family
+          uv run --with 'snakemake==9.25.1' snakemake \
+            --snakefile "${GITHUB_WORKSPACE}/PanFamFlow/src/panfamflow/workflow/Snakefile" \
+            --configfile "${GITHUB_WORKSPACE}/PanFamFlow/examples/toy/config.yaml" \
+            --directory "${GITHUB_WORKSPACE}/PanFamFlow/examples/toy" \
+            --cores 2 \
+            --dry-run \
+            results/00_qc/qc.done
+
+      - name: Install durable repository entry points
+        run: |
+          set -euo pipefail
+          cat > README.md <<'MARKDOWN'
+          # Wild rice Pangenome Project
+
+          > **Feature-branch notice:** this branch adds [`PanFamFlow/`](./PanFamFlow/), a target **pan-gene-family analysis** workflow. PanFamFlow consumes already assembled and annotated genomes; it is not a genome-assembly or graph-pangenome construction pipeline.
+
+          ## PanFamFlow: target pan-gene-family analysis
+
+          [`PanFamFlow/`](./PanFamFlow/) identifies a configured gene family across multiple assembled genomes/materials and integrates family phylogeny, target-family HOG occupancy, Core/Soft-core/Shell/Cloud classification, gene structure, duplication, Ka/Ks, promoter motifs, expression and a traceable report.
+
+          It explicitly does **not** assemble genomes, build a graph pangenome, call whole-genome SV/PAV, or classify all genome-wide HOGs as a general pangenome product. See [scope](./PanFamFlow/docs/SCOPE.md), [independent audit](./PanFamFlow/docs/AUDIT.md), [resume semantics](./PanFamFlow/docs/RESUME.md) and [validation status](./PanFamFlow/docs/VALIDATION.md).
+
+          ## Original repository content
+
+          This repository also retains the code associated with the Wild Rice Pangenome Project:
+
+          - [1. Genome assembly](./1.%20Genome_assembly/README.md)
+          - [2. Gene annotation](./2.%20Gene_annotation/README.md)
+          - [3. TE annotation](./3.%20TE_annotation/README.md)
+          - [4. Variation calling](./4.%20Variation_calling/README.md)
+          - [5. Pangenome analysis](./5.%20Pangenome_analysis/README.md)
+          - [6. Evolutionary analysis](./6.%20Evolutionary_analysis/README.md)
+          - [7. Domestication analysis](./7.%20Domestication_analysis/README.md)
+          - [8. Indica-japonica differentiation](./8.%20Indica-japonica_differentiated/README.md)
+
+          Original project database: [RicePandb](http://ricepandb.ncgr.ac.cn). Original publication: Guo, D., Li, Y., Lu, H. et al. *A pangenome reference of wild and cultivated rice*. Nature (2025). https://doi.org/10.1038/s41586-025-08883-6.
+          MARKDOWN
+
+          mkdir -p .github/workflows
+          cat > .github/workflows/panfamflow-ci.yml <<'YAML'
+          name: PanFamFlow CI
+
+          on:
+            pull_request:
+              paths:
+                - "PanFamFlow/**"
+                - ".github/workflows/panfamflow-ci.yml"
+                - "README.md"
+            push:
+              branches:
+                - main
+                - feature/panfamflow-v0.1.1-resume
+              paths:
+                - "PanFamFlow/**"
+                - ".github/workflows/panfamflow-ci.yml"
+                - "README.md"
+            workflow_dispatch:
+
+          permissions:
+            contents: read
+
+          concurrency:
+            group: panfamflow-${{ github.workflow }}-${{ github.ref }}
+            cancel-in-progress: true
+
+          jobs:
+            quality-scope-and-resume:
+              runs-on: ubuntu-latest
+              timeout-minutes: 60
+              defaults:
+                run:
+                  working-directory: PanFamFlow
+              steps:
+                - name: Checkout exact commit
+                  uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+                - name: Verify materialization and scope
+                  working-directory: .
+                  run: |
+                    set -euo pipefail
+                    test -f PanFamFlow/pyproject.toml
+                    test -f PanFamFlow/src/panfamflow/cli.py
+                    test -f PanFamFlow/src/panfamflow/workflow/Snakefile
+                    test ! -e _panfamflow_staging
+                    ! find .github/workflows -maxdepth 1 -type f -name 'panfamflow-v0.1.1-*' -print -quit | grep -q .
+                    grep -q '^# PanFamFlow — 泛基因家族分析流程' PanFamFlow/README.md
+                    grep -q '不是泛基因组组装流程' PanFamFlow/README.md
+                    grep -q '^pan_family:' PanFamFlow/src/panfamflow/templates/config.yaml
+                    ! grep -q '^pangenome:' PanFamFlow/src/panfamflow/templates/config.yaml
+
+                - name: Install uv
+                  uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+                  with:
+                    version: "0.12.3"
+                    enable-cache: true
+                    cache-dependency-glob: "PanFamFlow/uv.lock"
+
+                - name: Sync locked environment
+                  run: |
+                    uv python install 3.12
+                    uv sync --locked --dev
+
+                - name: Quality gates
+                  run: |
+                    uv run ruff check .
+                    uv run ruff format --check .
+                    uv run mypy src/panfamflow
+                    uv run pytest -q
+                    uv build
+
+                - name: CLI, scope and DAG gates
+                  run: |
+                    uv run panfamflow --version
+                    uv run panfamflow list-modules
+                    uv run panfamflow validate -c examples/toy/config.yaml -m qc
+                    uv run panfamflow plan -c examples/toy/config.yaml -m pan_family
+                    uv run pytest -q \
+                      tests/test_config.py::test_legacy_pangenome_name_migrates_to_pan_family \
+                      tests/test_config.py::test_whole_genome_scope_is_rejected
+                    uv run --with 'snakemake==9.25.1' snakemake \
+                      --snakefile "${GITHUB_WORKSPACE}/PanFamFlow/src/panfamflow/workflow/Snakefile" \
+                      --configfile "${GITHUB_WORKSPACE}/PanFamFlow/examples/toy/config.yaml" \
+                      --directory "${GITHUB_WORKSPACE}/PanFamFlow/examples/toy" \
+                      --cores 2 \
+                      --dry-run \
+                      results/00_qc/qc.done
+
+                - name: Execute smart-resume smoke test
+                  run: |
+                    set -euo pipefail
+                    rm -rf examples/toy/{results,work,logs,.snakemake,.panfamflow}
+                    run_qc() {
+                      uv run --with 'snakemake==9.25.1' panfamflow run \
+                        -c examples/toy/config.yaml -m qc
+                    }
+                    run_qc
+                    audit='examples/toy/results/00_qc/input_audit.tsv'
+                    done_file='examples/toy/results/00_qc/qc.done'
+                    test -s "$audit" && test -s "$done_file"
+                    audit_sha=$(sha256sum "$audit" | awk '{print $1}')
+                    audit_mtime=$(stat -c %Y "$audit")
+                    done_sha=$(sha256sum "$done_file" | awk '{print $1}')
+                    done_mtime=$(stat -c %Y "$done_file")
+                    sleep 1
+                    run_qc
+                    test "$audit_sha" = "$(sha256sum "$audit" | awk '{print $1}')"
+                    test "$audit_mtime" = "$(stat -c %Y "$audit")"
+                    test "$done_sha" = "$(sha256sum "$done_file" | awk '{print $1}')"
+                    test "$done_mtime" = "$(stat -c %Y "$done_file")"
+                    rm "$done_file"
+                    sleep 1
+                    run_qc
+                    test -s "$done_file"
+                    test "$audit_sha" = "$(sha256sum "$audit" | awk '{print $1}')"
+                    test "$audit_mtime" = "$(stat -c %Y "$audit")"
+          YAML
+
+      - name: Commit verified source and remove one-time staging
+        run: |
+          set -euo pipefail
+          rm -rf _panfamflow_staging
+          rm -f .github/workflows/panfamflow-v0.1.1-bootstrap.yml
+          rm -f .github/workflows/panfamflow-v0.1.1-finalize.yml
+          rm -f .github/workflows/panfamflow-v0.1.1-recover.yml
+          rm -f .github/workflows/panfamflow-v0.1.1-direct-materialize.yml
+
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: publish PanFamFlow target pan-gene-family workflow"
+          git push origin "HEAD:feature/panfamflow-v0.1.1-resume"

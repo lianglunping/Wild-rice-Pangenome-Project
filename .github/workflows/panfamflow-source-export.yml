@@ -1,0 +1,28 @@
+name: PanFamFlow source export
+
+on:
+  push:
+    branches:
+      - feature/panfamflow-v0.1.0
+    paths:
+      - "PanFamFlow/**"
+      - ".github/workflows/panfamflow-source-export.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upload PanFamFlow source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: panfamflow-source-snapshot
+          path: PanFamFlow
+          if-no-files-found: error
+          retention-days: 7

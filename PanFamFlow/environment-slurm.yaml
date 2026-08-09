@@ -1,0 +1,11 @@
+name: panfamflow-engine-slurm
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - python=3.12
+  - snakemake=9.25.1
+  - snakemake-executor-plugin-slurm=2.7.1
+  - conda>=25
+  - mamba>=2

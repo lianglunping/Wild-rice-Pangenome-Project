@@ -1,0 +1,11 @@
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - python=3.12
+  - hmmer>=3.4,<4
+  - blast>=2.16,<3
+  - pandas>=2.2,<3
+  - openpyxl>=3.1,<4
+  - biopython>=1.84,<2

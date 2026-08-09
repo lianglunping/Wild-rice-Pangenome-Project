@@ -1,0 +1,7 @@
+##gff-version 3
+chr1	toy	gene	1	 90	.	+	.	ID=GeneB1;Name=GeneB1
+chr1	toy	mRNA	1	90	.	+	.	ID=GeneB1.1;Parent=GeneB1
+chr1	toy	exon	1	45	.	+	.	Parent=GeneB1.1
+chr1	toy	exon	61	90	.	+	.	Parent=GeneB1.1
+chr1	toy	CDS	1	45	.	+	0	Parent=GeneB1.1
+chr1	toy	CDS	61	90	.	+	0	Parent=GeneB1.1

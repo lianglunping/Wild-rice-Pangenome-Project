@@ -1,0 +1,12 @@
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - python=3.12
+  - meme>=5.5,<6
+  - pandas>=2.2,<3
+  - numpy>=2,<3
+  - matplotlib-base>=3.9,<4
+  - openpyxl>=3.1,<4
+  - biopython>=1.84,<2

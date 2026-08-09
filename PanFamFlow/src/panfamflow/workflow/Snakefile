@@ -1,0 +1,88 @@
+"""PanFamFlow Snakemake entry point."""
+
+from pathlib import Path
+
+
+def join_path(root, *parts):
+    return str(Path(str(root)).joinpath(*parts))
+
+
+PROJECT = config["project"]
+RUN = config["run"]
+RESULTS = str(PROJECT.get("results_dir", "results"))
+WORK = str(PROJECT.get("work_dir", "work"))
+LOGS = str(PROJECT.get("logs_dir", "logs"))
+SEED = int(PROJECT.get("seed", 20260807))
+PLOT = config.get("plot", {})
+PNG_DPI = int(PLOT.get("png_dpi", 600))
+SPECIES_RECORDS = list(config["inputs"]["species"])
+SPECIES = [record["id"] for record in SPECIES_RECORDS]
+SPECIES_BY_ID = {record["id"]: record for record in SPECIES_RECORDS}
+REPRESENTATIVES = [record["id"] for record in SPECIES_RECORDS if record.get("representative")]
+SAMPLES = [record["id"] for record in config["inputs"].get("rnaseq_samples", [])]
+SAMPLE_BY_ID = {record["id"]: record for record in config["inputs"].get("rnaseq_samples", [])}
+SEPARATOR = config.get("canonical_transcript", {}).get("stable_id_separator", "__")
+
+selected_override = config.get("panfamflow_selected_modules")
+if selected_override:
+    SELECTED_MODULES = [item for item in str(selected_override).split(",") if item]
+else:
+    SELECTED_MODULES = list(RUN.get("modules", ["qc"]))
+MODULE_ALIASES = {"pangenome": "pan_family", "pan_gene_family": "pan_family"}
+SELECTED_MODULES = [MODULE_ALIASES.get(item, item) for item in SELECTED_MODULES]
+
+MODULE_TARGETS = {
+    "qc": join_path(RESULTS, "00_qc", "qc.done"),
+    "normalize": join_path(RESULTS, "01_normalized", "normalized.done"),
+    "family": join_path(RESULTS, "02_family", "family_members.tsv"),
+    "phylogeny": join_path(RESULTS, "03_phylogeny", "family.treefile"),
+    "gene_structure": join_path(RESULTS, "04_gene_structure", "gene_structure_metrics.tsv"),
+    "orthology": join_path(RESULTS, "05_orthology", "orthofinder.done"),
+    "pan_family": join_path(RESULTS, "06_pan_family", "pan_family_classification.tsv"),
+    "chromosome": join_path(RESULTS, "07_chromosome", "chromosome_distribution.tsv"),
+    "duplication": join_path(RESULTS, "08_duplication", "duplication_mode.tsv"),
+    "kaks": join_path(RESULTS, "09_kaks", "kaks_pairs.tsv"),
+    "promoter": join_path(RESULTS, "10_promoter", "promoter_elements.tsv"),
+    "expression": join_path(RESULTS, "11_expression", "expression_matrix.tsv"),
+    "report": join_path(RESULTS, "report", "index.html"),
+}
+unknown_modules = sorted(set(SELECTED_MODULES).difference(MODULE_TARGETS))
+if unknown_modules:
+    raise ValueError(f"Unknown PanFamFlow modules: {', '.join(unknown_modules)}")
+
+NORMALIZED_GFFS = [join_path(RESULTS, "01_normalized", f"{species}.canonical.gff3") for species in SPECIES]
+NORMALIZED_PROTEINS = [join_path(RESULTS, "01_normalized", f"{species}.proteins.fa") for species in SPECIES]
+NORMALIZED_CDS = [join_path(RESULTS, "01_normalized", f"{species}.cds.fa") for species in SPECIES]
+NORMALIZED_MAPS = [join_path(RESULTS, "01_normalized", f"{species}.gene_transcript_map.tsv") for species in SPECIES]
+
+
+def species_field(wildcards, field):
+    return SPECIES_BY_ID[wildcards.species][field]
+
+
+def sample_field(wildcards, field):
+    return SAMPLE_BY_ID[wildcards.sample][field]
+
+
+wildcard_constraints:
+    species="|".join(SPECIES),
+    sample="|".join(SAMPLES) if SAMPLES else r"a^",
+
+rule all:
+    input:
+        [MODULE_TARGETS[module] for module in SELECTED_MODULES]
+
+
+include: "rules/qc.smk"
+include: "rules/normalize.smk"
+include: "rules/family.smk"
+include: "rules/phylogeny.smk"
+include: "rules/gene_structure.smk"
+include: "rules/orthology.smk"
+include: "rules/pan_family.smk"
+include: "rules/chromosome.smk"
+include: "rules/duplication.smk"
+include: "rules/kaks.smk"
+include: "rules/promoter.smk"
+include: "rules/expression.smk"
+include: "rules/report.smk"

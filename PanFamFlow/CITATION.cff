@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use PanFamFlow, cite this software and the underlying tools enabled in your configuration."
+title: "PanFamFlow: target pan-gene-family analysis workflow"
+type: software
+version: 0.1.1
+date-released: 2026-08-08
+authors:
+  - family-names: "Liang"
+    given-names: "Lunping"
+license: MIT
+repository-code: "https://github.com/lianglunping/Wild-rice-Pangenome-Project"
+keywords:
+  - gene family
+  - pan-gene-family
+  - target gene family
+  - comparative genomics
+  - Snakemake

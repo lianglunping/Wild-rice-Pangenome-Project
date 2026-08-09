@@ -1,0 +1,148 @@
+schema_version: "1.0"
+project:
+  analysis_scope: target_pan_gene_family
+  name: toy_gene_family
+  root: .
+  seed: 20260807
+  results_dir: results
+  work_dir: work
+  logs_dir: logs
+run:
+  modules: [qc]
+  cores: 2
+  jobs: 2
+  engine_runner: current
+  engine_env: null
+  use_conda: false
+  resume_mode: smart
+  keep_going: true
+  rerun_incomplete: true
+  latency_wait: 10
+  retries: 1
+  rerun_triggers: [mtime, input, params, code, software-env]
+  printshellcmds: true
+  show_failed_logs: true
+  profile: null
+  extra_snakemake_args: []
+inputs:
+  species:
+    - id: SpA
+      name: Species_A
+      genome: data/SpA/genome.fa
+      gff3: data/SpA/annotation.gff3
+      protein: null
+      cds: null
+      group: Group_1
+      subfamily: Clade_A
+      representative: true
+      outgroup: SpB
+      busco_lineage: embryophyta_odb12
+    - id: SpB
+      name: Species_B
+      genome: data/SpB/genome.fa
+      gff3: data/SpB/annotation.gff3
+      protein: null
+      cds: null
+      group: Group_2
+      subfamily: Clade_B
+      representative: false
+      outgroup: null
+      busco_lineage: embryophyta_odb12
+  rnaseq_samples: []
+  expression_matrix: references/expression.tsv
+  sample_metadata: null
+qc:
+  calculate_sha256: true
+  busco:
+    enabled: false
+    mode: genome
+    threads: 2
+    offline: false
+    download_path: null
+    extra_args: []
+canonical_transcript:
+  method: longest_cds
+  sequence_source: gffread
+  stable_id_separator: "__"
+family:
+  name: TOY
+  combine_evidence: union
+  calculate_protein_properties: true
+  hmm:
+    enabled: false
+    hmm: null
+    evalue: 1.0e-5
+    domain_evalue: 1.0e-3
+    cut_ga: false
+  blast:
+    enabled: false
+    reference_proteins: null
+    evalue: 1.0e-5
+    min_identity: 30.0
+    min_query_coverage: 50.0
+    max_target_seqs: 100
+  subfamily_assignments: null
+  domain_validation_table: null
+  subcellular_localization_table: null
+  precomputed_members: references/family_members.tsv
+phylogeny:
+  mafft_mode: auto
+  trim_mode: smart-gap
+  model: MFP
+  ultrafast_bootstrap: 1000
+  sh_alrt: 1000
+  min_sequences: 4
+orthofinder:
+  hog_node: auto
+  search_threads: 2
+  analysis_threads: 1
+  extra_args: []
+pan_family:
+  core_min: 0.99
+  soft_core_min: 0.90
+  shell_min: 0.10
+  rarefaction_iterations: 10
+  max_exact_combinations: 100
+duplication:
+  backend: precomputed
+  targets: null
+  precomputed_table: references/duplication.tsv
+  dupgen_executable: DupGen_finder-unique.pl
+  diamond_evalue: 1.0e-10
+  max_target_seqs: 5
+  proximal_max_gene_distance: 10
+  extra_args: []
+kaks:
+  pair_source: orthology
+  reference_species: SpA
+  method: MA
+  max_pairs_per_group: null
+  saturation_ks: 2.0
+  workers: 2
+promoter:
+  backend: precomputed_plantcare
+  upstream_bp: 2000
+  downstream_bp: 0
+  motif_database: null
+  category_map: null
+  precomputed_table: references/promoter.tsv
+  fimo_threshold: 1.0e-4
+  top_n_elements: 20
+expression:
+  mode: imported_matrix
+  min_tpm_detected: 1.0
+  heatmap_transform: log2_tpm1_zscore
+  fastp_extra_args: []
+  hisat2_extra_args: []
+  stringtie_extra_args: []
+chromosome:
+  representative_only: false
+  density_window_bp: 1000000
+plot:
+  pdf: true
+  png: true
+  png_dpi: 300
+  language: English
+report:
+  title: Toy PanFamFlow report
+  include_existing_results: true

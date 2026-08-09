@@ -1,0 +1,1265 @@
+{
+  "$defs": {
+    "BlastSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "reference_proteins": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference Proteins"
+        },
+        "evalue": {
+          "default": 1e-05,
+          "exclusiveMinimum": 0,
+          "title": "Evalue",
+          "type": "number"
+        },
+        "min_identity": {
+          "default": 30.0,
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Min Identity",
+          "type": "number"
+        },
+        "min_query_coverage": {
+          "default": 50.0,
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Min Query Coverage",
+          "type": "number"
+        },
+        "max_target_seqs": {
+          "default": 100,
+          "minimum": 1,
+          "title": "Max Target Seqs",
+          "type": "integer"
+        }
+      },
+      "title": "BlastSettings",
+      "type": "object"
+    },
+    "BuscoSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "mode": {
+          "const": "genome",
+          "default": "genome",
+          "title": "Mode",
+          "type": "string"
+        },
+        "threads": {
+          "default": 8,
+          "minimum": 1,
+          "title": "Threads",
+          "type": "integer"
+        },
+        "offline": {
+          "default": false,
+          "title": "Offline",
+          "type": "boolean"
+        },
+        "download_path": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Download Path"
+        },
+        "extra_args": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Extra Args",
+          "type": "array"
+        }
+      },
+      "title": "BuscoSettings",
+      "type": "object"
+    },
+    "CanonicalTranscriptSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "const": "longest_cds",
+          "default": "longest_cds",
+          "title": "Method",
+          "type": "string"
+        },
+        "sequence_source": {
+          "const": "gffread",
+          "default": "gffread",
+          "title": "Sequence Source",
+          "type": "string"
+        },
+        "stable_id_separator": {
+          "default": "__",
+          "title": "Stable Id Separator",
+          "type": "string"
+        }
+      },
+      "title": "CanonicalTranscriptSettings",
+      "type": "object"
+    },
+    "ChromosomeSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "representative_only": {
+          "default": false,
+          "title": "Representative Only",
+          "type": "boolean"
+        },
+        "density_window_bp": {
+          "default": 1000000,
+          "minimum": 1,
+          "title": "Density Window Bp",
+          "type": "integer"
+        }
+      },
+      "title": "ChromosomeSettings",
+      "type": "object"
+    },
+    "DuplicationSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "backend": {
+          "default": "dupgen_finder_unique",
+          "enum": [
+            "dupgen_finder_unique",
+            "precomputed"
+          ],
+          "title": "Backend",
+          "type": "string"
+        },
+        "targets": {
+          "anyOf": [
+            {
+              "items": {
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Targets"
+        },
+        "precomputed_table": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Precomputed Table"
+        },
+        "dupgen_executable": {
+          "default": "DupGen_finder-unique.pl",
+          "title": "Dupgen Executable",
+          "type": "string"
+        },
+        "diamond_evalue": {
+          "default": 1e-10,
+          "exclusiveMinimum": 0,
+          "title": "Diamond Evalue",
+          "type": "number"
+        },
+        "max_target_seqs": {
+          "default": 5,
+          "minimum": 1,
+          "title": "Max Target Seqs",
+          "type": "integer"
+        },
+        "proximal_max_gene_distance": {
+          "default": 10,
+          "minimum": 1,
+          "title": "Proximal Max Gene Distance",
+          "type": "integer"
+        },
+        "extra_args": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Extra Args",
+          "type": "array"
+        }
+      },
+      "title": "DuplicationSettings",
+      "type": "object"
+    },
+    "ExpressionSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "default": "imported_matrix",
+          "enum": [
+            "imported_matrix",
+            "fastq_stringtie"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "min_tpm_detected": {
+          "default": 1.0,
+          "minimum": 0,
+          "title": "Min Tpm Detected",
+          "type": "number"
+        },
+        "heatmap_transform": {
+          "default": "log2_tpm1_zscore",
+          "enum": [
+            "log2_tpm1_zscore",
+            "log2_tpm1"
+          ],
+          "title": "Heatmap Transform",
+          "type": "string"
+        },
+        "fastp_extra_args": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Fastp Extra Args",
+          "type": "array"
+        },
+        "hisat2_extra_args": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Hisat2 Extra Args",
+          "type": "array"
+        },
+        "stringtie_extra_args": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Stringtie Extra Args",
+          "type": "array"
+        }
+      },
+      "title": "ExpressionSettings",
+      "type": "object"
+    },
+    "FamilySettings": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "default": "TARGET_FAMILY",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "combine_evidence": {
+          "default": "union",
+          "enum": [
+            "union",
+            "intersection",
+            "hmm_only",
+            "blast_only"
+          ],
+          "title": "Combine Evidence",
+          "type": "string"
+        },
+        "hmm": {
+          "$ref": "#/$defs/HMMSettings"
+        },
+        "blast": {
+          "$ref": "#/$defs/BlastSettings"
+        },
+        "calculate_protein_properties": {
+          "default": true,
+          "title": "Calculate Protein Properties",
+          "type": "boolean"
+        },
+        "subfamily_assignments": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Subfamily Assignments"
+        },
+        "domain_validation_table": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Domain Validation Table"
+        },
+        "subcellular_localization_table": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Subcellular Localization Table"
+        },
+        "precomputed_members": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Precomputed Members"
+        }
+      },
+      "title": "FamilySettings",
+      "type": "object"
+    },
+    "HMMSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "hmm": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hmm"
+        },
+        "evalue": {
+          "default": 1e-05,
+          "exclusiveMinimum": 0,
+          "title": "Evalue",
+          "type": "number"
+        },
+        "domain_evalue": {
+          "default": 0.001,
+          "exclusiveMinimum": 0,
+          "title": "Domain Evalue",
+          "type": "number"
+        },
+        "cut_ga": {
+          "default": false,
+          "title": "Cut Ga",
+          "type": "boolean"
+        }
+      },
+      "title": "HMMSettings",
+      "type": "object"
+    },
+    "InputsSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "species": {
+          "items": {
+            "$ref": "#/$defs/SpeciesInput"
+          },
+          "minItems": 1,
+          "title": "Species",
+          "type": "array"
+        },
+        "rnaseq_samples": {
+          "items": {
+            "$ref": "#/$defs/RNASeqSample"
+          },
+          "title": "Rnaseq Samples",
+          "type": "array"
+        },
+        "expression_matrix": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expression Matrix"
+        },
+        "sample_metadata": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sample Metadata"
+        }
+      },
+      "required": [
+        "species"
+      ],
+      "title": "InputsSettings",
+      "type": "object"
+    },
+    "KaksSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "pair_source": {
+          "default": "both",
+          "enum": [
+            "orthology",
+            "duplication",
+            "both"
+          ],
+          "title": "Pair Source",
+          "type": "string"
+        },
+        "reference_species": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference Species"
+        },
+        "method": {
+          "default": "MA",
+          "title": "Method",
+          "type": "string"
+        },
+        "max_pairs_per_group": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Pairs Per Group"
+        },
+        "saturation_ks": {
+          "default": 2.0,
+          "exclusiveMinimum": 0,
+          "title": "Saturation Ks",
+          "type": "number"
+        },
+        "workers": {
+          "default": 4,
+          "minimum": 1,
+          "title": "Workers",
+          "type": "integer"
+        }
+      },
+      "title": "KaksSettings",
+      "type": "object"
+    },
+    "OrthoFinderSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "hog_node": {
+          "default": "auto",
+          "title": "Hog Node",
+          "type": "string"
+        },
+        "search_threads": {
+          "default": 32,
+          "minimum": 1,
+          "title": "Search Threads",
+          "type": "integer"
+        },
+        "analysis_threads": {
+          "default": 8,
+          "minimum": 1,
+          "title": "Analysis Threads",
+          "type": "integer"
+        },
+        "extra_args": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Extra Args",
+          "type": "array"
+        }
+      },
+      "title": "OrthoFinderSettings",
+      "type": "object"
+    },
+    "PanFamilySettings": {
+      "additionalProperties": false,
+      "description": "Occupancy classification for HOGs containing target-family members only.",
+      "properties": {
+        "core_min": {
+          "default": 0.99,
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Core Min",
+          "type": "number"
+        },
+        "soft_core_min": {
+          "default": 0.9,
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Soft Core Min",
+          "type": "number"
+        },
+        "shell_min": {
+          "default": 0.1,
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Shell Min",
+          "type": "number"
+        },
+        "rarefaction_iterations": {
+          "default": 1000,
+          "minimum": 1,
+          "title": "Rarefaction Iterations",
+          "type": "integer"
+        },
+        "max_exact_combinations": {
+          "default": 5000,
+          "minimum": 1,
+          "title": "Max Exact Combinations",
+          "type": "integer"
+        }
+      },
+      "title": "PanFamilySettings",
+      "type": "object"
+    },
+    "PhylogenySettings": {
+      "additionalProperties": false,
+      "properties": {
+        "mafft_mode": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "linsi",
+            "ginsi",
+            "einsi"
+          ],
+          "title": "Mafft Mode",
+          "type": "string"
+        },
+        "trim_mode": {
+          "default": "smart-gap",
+          "title": "Trim Mode",
+          "type": "string"
+        },
+        "model": {
+          "default": "MFP",
+          "title": "Model",
+          "type": "string"
+        },
+        "ultrafast_bootstrap": {
+          "default": 1000,
+          "minimum": 0,
+          "title": "Ultrafast Bootstrap",
+          "type": "integer"
+        },
+        "sh_alrt": {
+          "default": 1000,
+          "minimum": 0,
+          "title": "Sh Alrt",
+          "type": "integer"
+        },
+        "min_sequences": {
+          "default": 4,
+          "minimum": 3,
+          "title": "Min Sequences",
+          "type": "integer"
+        }
+      },
+      "title": "PhylogenySettings",
+      "type": "object"
+    },
+    "PlotSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "pdf": {
+          "default": true,
+          "title": "Pdf",
+          "type": "boolean"
+        },
+        "png": {
+          "default": true,
+          "title": "Png",
+          "type": "boolean"
+        },
+        "png_dpi": {
+          "default": 600,
+          "minimum": 72,
+          "title": "Png Dpi",
+          "type": "integer"
+        },
+        "language": {
+          "const": "English",
+          "default": "English",
+          "title": "Language",
+          "type": "string"
+        }
+      },
+      "title": "PlotSettings",
+      "type": "object"
+    },
+    "ProjectSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "analysis_scope": {
+          "const": "target_pan_gene_family",
+          "default": "target_pan_gene_family",
+          "title": "Analysis Scope",
+          "type": "string"
+        },
+        "name": {
+          "default": "gene_family_project",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "root": {
+          "default": ".",
+          "format": "path",
+          "title": "Root",
+          "type": "string"
+        },
+        "seed": {
+          "default": 20260807,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "results_dir": {
+          "default": "results",
+          "format": "path",
+          "title": "Results Dir",
+          "type": "string"
+        },
+        "work_dir": {
+          "default": "work",
+          "format": "path",
+          "title": "Work Dir",
+          "type": "string"
+        },
+        "logs_dir": {
+          "default": "logs",
+          "format": "path",
+          "title": "Logs Dir",
+          "type": "string"
+        }
+      },
+      "title": "ProjectSettings",
+      "type": "object"
+    },
+    "PromoterSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "backend": {
+          "default": "fimo",
+          "enum": [
+            "fimo",
+            "precomputed_plantcare"
+          ],
+          "title": "Backend",
+          "type": "string"
+        },
+        "upstream_bp": {
+          "default": 2000,
+          "minimum": 1,
+          "title": "Upstream Bp",
+          "type": "integer"
+        },
+        "downstream_bp": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Downstream Bp",
+          "type": "integer"
+        },
+        "motif_database": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Motif Database"
+        },
+        "category_map": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Category Map"
+        },
+        "precomputed_table": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Precomputed Table"
+        },
+        "fimo_threshold": {
+          "default": 0.0001,
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Fimo Threshold",
+          "type": "number"
+        },
+        "top_n_elements": {
+          "default": 20,
+          "minimum": 1,
+          "title": "Top N Elements",
+          "type": "integer"
+        }
+      },
+      "title": "PromoterSettings",
+      "type": "object"
+    },
+    "QcSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "calculate_sha256": {
+          "default": true,
+          "title": "Calculate Sha256",
+          "type": "boolean"
+        },
+        "busco": {
+          "$ref": "#/$defs/BuscoSettings"
+        }
+      },
+      "title": "QcSettings",
+      "type": "object"
+    },
+    "RNASeqSample": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "species_id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$",
+          "title": "Species Id",
+          "type": "string"
+        },
+        "condition": {
+          "title": "Condition",
+          "type": "string"
+        },
+        "tissue": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tissue"
+        },
+        "stress_type": {
+          "default": "Other",
+          "enum": [
+            "Control",
+            "Abiotic",
+            "Biotic",
+            "Other"
+          ],
+          "title": "Stress Type",
+          "type": "string"
+        },
+        "timepoint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timepoint"
+        },
+        "replicate": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Replicate"
+        },
+        "batch": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Batch"
+        },
+        "strandedness": {
+          "default": "unstranded",
+          "enum": [
+            "unstranded",
+            "forward",
+            "reverse"
+          ],
+          "title": "Strandedness",
+          "type": "string"
+        },
+        "r1": {
+          "format": "path",
+          "title": "R1",
+          "type": "string"
+        },
+        "r2": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "R2"
+        }
+      },
+      "required": [
+        "id",
+        "species_id",
+        "condition",
+        "r1"
+      ],
+      "title": "RNASeqSample",
+      "type": "object"
+    },
+    "ReportSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "include_existing_results": {
+          "default": true,
+          "title": "Include Existing Results",
+          "type": "boolean"
+        }
+      },
+      "title": "ReportSettings",
+      "type": "object"
+    },
+    "RunSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "modules": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Modules",
+          "type": "array"
+        },
+        "cores": {
+          "default": 16,
+          "minimum": 1,
+          "title": "Cores",
+          "type": "integer"
+        },
+        "jobs": {
+          "default": 16,
+          "minimum": 1,
+          "title": "Jobs",
+          "type": "integer"
+        },
+        "engine_runner": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "mamba",
+            "conda",
+            "current"
+          ],
+          "title": "Engine Runner",
+          "type": "string"
+        },
+        "engine_env": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "panfamflow-engine",
+          "title": "Engine Env"
+        },
+        "use_conda": {
+          "default": true,
+          "title": "Use Conda",
+          "type": "boolean"
+        },
+        "resume_mode": {
+          "default": "smart",
+          "enum": [
+            "smart",
+            "mtime_only",
+            "off"
+          ],
+          "title": "Resume Mode",
+          "type": "string"
+        },
+        "keep_going": {
+          "default": true,
+          "title": "Keep Going",
+          "type": "boolean"
+        },
+        "rerun_incomplete": {
+          "default": true,
+          "title": "Rerun Incomplete",
+          "type": "boolean"
+        },
+        "latency_wait": {
+          "default": 120,
+          "minimum": 0,
+          "title": "Latency Wait",
+          "type": "integer"
+        },
+        "retries": {
+          "default": 1,
+          "minimum": 0,
+          "title": "Retries",
+          "type": "integer"
+        },
+        "rerun_triggers": {
+          "items": {
+            "enum": [
+              "mtime",
+              "input",
+              "params",
+              "code",
+              "software-env"
+            ],
+            "type": "string"
+          },
+          "title": "Rerun Triggers",
+          "type": "array"
+        },
+        "printshellcmds": {
+          "default": true,
+          "title": "Printshellcmds",
+          "type": "boolean"
+        },
+        "show_failed_logs": {
+          "default": true,
+          "title": "Show Failed Logs",
+          "type": "boolean"
+        },
+        "profile": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Profile"
+        },
+        "extra_snakemake_args": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Extra Snakemake Args",
+          "type": "array"
+        }
+      },
+      "title": "RunSettings",
+      "type": "object"
+    },
+    "SpeciesInput": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "genome": {
+          "format": "path",
+          "title": "Genome",
+          "type": "string"
+        },
+        "gff3": {
+          "format": "path",
+          "title": "Gff3",
+          "type": "string"
+        },
+        "protein": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Protein"
+        },
+        "cds": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cds"
+        },
+        "group": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Group"
+        },
+        "subfamily": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Subfamily"
+        },
+        "representative": {
+          "default": false,
+          "title": "Representative",
+          "type": "boolean"
+        },
+        "outgroup": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Outgroup"
+        },
+        "busco_lineage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Busco Lineage"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "genome",
+        "gff3"
+      ],
+      "title": "SpeciesInput",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "project": {
+      "$ref": "#/$defs/ProjectSettings"
+    },
+    "run": {
+      "$ref": "#/$defs/RunSettings"
+    },
+    "inputs": {
+      "$ref": "#/$defs/InputsSettings"
+    },
+    "qc": {
+      "$ref": "#/$defs/QcSettings"
+    },
+    "canonical_transcript": {
+      "$ref": "#/$defs/CanonicalTranscriptSettings"
+    },
+    "family": {
+      "$ref": "#/$defs/FamilySettings"
+    },
+    "phylogeny": {
+      "$ref": "#/$defs/PhylogenySettings"
+    },
+    "orthofinder": {
+      "$ref": "#/$defs/OrthoFinderSettings"
+    },
+    "pan_family": {
+      "$ref": "#/$defs/PanFamilySettings"
+    },
+    "chromosome": {
+      "$ref": "#/$defs/ChromosomeSettings"
+    },
+    "duplication": {
+      "$ref": "#/$defs/DuplicationSettings"
+    },
+    "kaks": {
+      "$ref": "#/$defs/KaksSettings"
+    },
+    "promoter": {
+      "$ref": "#/$defs/PromoterSettings"
+    },
+    "expression": {
+      "$ref": "#/$defs/ExpressionSettings"
+    },
+    "plot": {
+      "$ref": "#/$defs/PlotSettings"
+    },
+    "report": {
+      "$ref": "#/$defs/ReportSettings"
+    }
+  },
+  "required": [
+    "inputs",
+    "family"
+  ],
+  "title": "WorkflowConfig",
+  "type": "object"
+}

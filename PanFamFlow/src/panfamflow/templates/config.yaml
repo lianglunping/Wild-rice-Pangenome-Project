@@ -1,0 +1,196 @@
+# yaml-language-server: $schema=.panfamflow/config.schema.json
+# PanFamFlow configuration schema 1.0
+# All paths are relative to project.root unless absolute.
+schema_version: "1.0"
+
+project:
+  analysis_scope: target_pan_gene_family
+  name: TARGET_FAMILY_pan_gene_family
+  root: .
+  seed: 20260807
+  results_dir: results
+  work_dir: work
+  logs_dir: logs
+
+run:
+  # Choose any subset. Dependencies are expanded automatically.
+  modules:
+    - family
+    - phylogeny
+    - gene_structure
+    - orthology
+    - pan_family
+    - chromosome
+    - report
+  cores: 32
+  jobs: 32
+  # auto searches mamba first and conda second.
+  engine_runner: auto
+  engine_env: panfamflow-engine
+  use_conda: true
+  # smart: rerun incomplete/outdated jobs and skip valid completed outputs.
+  # mtime_only: use only timestamps; off: disable PanFamFlow resume flags.
+  resume_mode: smart
+  keep_going: true
+  rerun_incomplete: true
+  latency_wait: 120
+  retries: 1
+  rerun_triggers:
+    - mtime
+    - input
+    - params
+    - code
+    - software-env
+  printshellcmds: true
+  show_failed_logs: true
+  profile: null
+  extra_snakemake_args: []
+
+inputs:
+  species:
+    - id: Os
+      name: Oryza_sativa
+      genome: data/Os/genome.fa
+      gff3: data/Os/annotation.gff3
+      # Optional source files retained for provenance; canonical sequences are regenerated.
+      protein: null
+      cds: null
+      group: Cultivated
+      subfamily: Oryza
+      representative: true
+      outgroup: Og
+      # Required only when qc.busco.enabled is true.
+      busco_lineage: poales_odb12
+    - id: Og
+      name: Oryza_granulata
+      genome: data/Og/genome.fa
+      gff3: data/Og/annotation.gff3
+      protein: null
+      cds: null
+      group: Wild
+      subfamily: Oryza
+      representative: false
+      outgroup: null
+      busco_lineage: poales_odb12
+
+  # FASTQ mode keeps sample metadata in the same config file.
+  rnaseq_samples: []
+  # For expression.mode=imported_matrix, rows should be stable IDs (Species__Gene).
+  expression_matrix: null
+  sample_metadata: null
+
+qc:
+  calculate_sha256: true
+  busco:
+    enabled: false
+    mode: genome
+    threads: 8
+    offline: false
+    download_path: null
+    extra_args: []
+
+canonical_transcript:
+  method: longest_cds
+  sequence_source: gffread
+  stable_id_separator: "__"
+
+family:
+  name: TARGET_FAMILY
+  # union, intersection, hmm_only or blast_only
+  combine_evidence: intersection
+  calculate_protein_properties: true
+  hmm:
+    enabled: true
+    hmm: references/family.hmm
+    evalue: 1.0e-5
+    domain_evalue: 1.0e-3
+    cut_ga: false
+  blast:
+    enabled: true
+    reference_proteins: references/family_reference.pep.fa
+    evalue: 1.0e-5
+    min_identity: 30.0
+    min_query_coverage: 50.0
+    max_target_seqs: 100
+  # Optional audited imports; each must contain stable_id or species_id + gene_id.
+  subfamily_assignments: null
+  domain_validation_table: null
+  subcellular_localization_table: null
+  # Set this to a member table to bypass HMM/BLAST discovery.
+  precomputed_members: null
+
+phylogeny:
+  mafft_mode: auto
+  trim_mode: smart-gap
+  model: MFP
+  ultrafast_bootstrap: 1000
+  sh_alrt: 1000
+  min_sequences: 4
+
+orthofinder:
+  # Use auto only for discovery; freeze the target clade N* node for final analysis.
+  hog_node: auto
+  search_threads: 32
+  analysis_threads: 8
+  extra_args: []
+
+pan_family:
+  # Occupancy thresholds for target-family HOGs only.
+  # This module does not construct or assemble a whole-genome pangenome.
+  core_min: 0.99
+  soft_core_min: 0.90
+  shell_min: 0.10
+  rarefaction_iterations: 1000
+  max_exact_combinations: 5000
+
+chromosome:
+  representative_only: false
+  density_window_bp: 1000000
+
+duplication:
+  backend: dupgen_finder_unique
+  # null means every species with a configured outgroup.
+  targets: null
+  precomputed_table: null
+  dupgen_executable: DupGen_finder-unique.pl
+  diamond_evalue: 1.0e-10
+  max_target_seqs: 5
+  proximal_max_gene_distance: 10
+  extra_args: []
+
+kaks:
+  pair_source: both
+  # If null, the first representative species is used for strict single-copy HOG pairs.
+  reference_species: null
+  method: MA
+  max_pairs_per_group: null
+  saturation_ks: 2.0
+  workers: 4
+
+promoter:
+  upstream_bp: 2000
+  downstream_bp: 0
+  backend: fimo
+  motif_database: references/JASPAR2026_Plantae.meme
+  category_map: references/cis_element_categories.tsv
+  precomputed_table: null
+  fimo_threshold: 1.0e-4
+  top_n_elements: 20
+
+expression:
+  mode: imported_matrix
+  min_tpm_detected: 1.0
+  heatmap_transform: log2_tpm1_zscore
+  fastp_extra_args: []
+  hisat2_extra_args: []
+  stringtie_extra_args: []
+
+plot:
+  pdf: true
+  png: true
+  png_dpi: 600
+  language: English
+
+report:
+  title: null
+  include_existing_results: true

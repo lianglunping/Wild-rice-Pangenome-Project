@@ -1,10 +1,16 @@
 # Wild rice Pangenome Project
 
-## Introduction
+> **Feature-branch addition:** [`PanFamFlow/`](./PanFamFlow/) is a target **pan-gene-family analysis** workflow. It consumes already assembled and annotated genomes; it is not a genome-assembly or graph-pangenome construction pipeline.
 
-This repository contains all codes and scripts used in the Wild Rice Pangenome Project. The project aims to provide a comprehensive analysis of a pangenome reference of wild and cultivated rice. Below is a directory guide outlining the contents and purpose of each script.
+## PanFamFlow: target pan-gene-family analysis
 
-## Workflow Overview
+PanFamFlow identifies one configured gene family across multiple assembled genomes or materials, then integrates family-member evidence, family phylogeny, target-family HOG occupancy, Core/Soft-core/Shell/Cloud classification, gene structure, chromosome distribution, duplication, Ka/Ks, promoter motifs, expression and a traceable report.
+
+It does **not** assemble genomes, construct graph pangenomes, call genome-wide SV/PAV, or classify every genome-wide HOG as a general pangenome product. Read the [workflow README](./PanFamFlow/README.md), [scope contract](./PanFamFlow/docs/SCOPE.md), [audit notes](./PanFamFlow/docs/AUDIT.md), [resume semantics](./PanFamFlow/docs/RESUME.md), and [validation status](./PanFamFlow/docs/VALIDATION.md).
+
+## Original repository content
+
+The original Wild Rice Pangenome Project code remains available in directories 1–8:
 
 - [1. Genome assembly](./1.%20Genome_assembly/README.md)
 - [2. Gene annotation](./2.%20Gene_annotation/README.md)
@@ -13,12 +19,6 @@ This repository contains all codes and scripts used in the Wild Rice Pangenome P
 - [5. Pangenome analysis](./5.%20Pangenome_analysis/README.md)
 - [6. Evolutionary analysis](./6.%20Evolutionary_analysis/README.md)
 - [7. Domestication analysis](./7.%20Domestication_analysis/README.md)
-- [8. Indica-japonica differentiation](./8.%20Indica-japonica_differentiated/README.md)
+- [8. Indica–japonica differentiation](./8.%20Indica-japonica_differentiated/README.md)
 
-## Database
-
-All data and results from this project are available at the [RicePandb database](http://ricepandb.ncgr.ac.cn).
-
-## Citations
-
-Please cite our paper if you find these scripts useful: Guo, D., Li, Y., Lu, H. et al. A pangenome reference of wild and cultivated rice. Nature (2025). https://doi.org/10.1038/s41586-025-08883-6.
+Original database: [RicePandb](http://ricepandb.ncgr.ac.cn). Original publication: Guo, D., Li, Y., Lu, H. et al. *A pangenome reference of wild and cultivated rice*. Nature (2025). https://doi.org/10.1038/s41586-025-08883-6.

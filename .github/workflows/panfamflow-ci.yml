@@ -5,6 +5,7 @@ on:
     paths:
       - "PanFamFlow/**"
       - ".github/workflows/panfamflow-ci.yml"
+      - "README.md"
   push:
     branches:
       - main
@@ -12,39 +13,46 @@ on:
     paths:
       - "PanFamFlow/**"
       - ".github/workflows/panfamflow-ci.yml"
+      - "README.md"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: panfamflow-ci-${{ github.ref }}
+  group: panfamflow-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   quality-scope-and-resume:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: PanFamFlow
+
     steps:
-      - name: Checkout
+      - name: Checkout exact commit
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Verify repository materialization and scope
+      - name: Verify repository materialization and scientific scope
         working-directory: .
         run: |
           set -euo pipefail
           test -f PanFamFlow/pyproject.toml
+          test -f PanFamFlow/uv.lock
+          test -f PanFamFlow/src/panfamflow/cli.py
+          test -f PanFamFlow/src/panfamflow/workflow/Snakefile
           test -f PanFamFlow/src/panfamflow/workflow/rules/pan_family.smk
-          test -f PanFamFlow/docs/SCOPE.md
           test ! -e _panfamflow_publish
           test ! -e _panfamflow_staging
+          ! find .github/workflows -maxdepth 1 -type f -name 'panfamflow-v0.1.1-*' -print -quit | grep -q .
           grep -q '^# PanFamFlow — 泛基因家族分析流程' PanFamFlow/README.md
           grep -q '不是泛基因组组装流程' PanFamFlow/README.md
           grep -q '^pan_family:$' PanFamFlow/src/panfamflow/templates/config.yaml
           ! grep -q '^pangenome:$' PanFamFlow/src/panfamflow/templates/config.yaml
+          grep -q 'analysis_scope: target_pan_gene_family' PanFamFlow/src/panfamflow/templates/config.yaml
+          ! grep -R '^from __future__ import annotations' PanFamFlow/src/panfamflow/workflow/scripts
 
       - name: Install uv
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
@@ -53,12 +61,13 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "PanFamFlow/uv.lock"
 
-      - name: Sync locked Python environment
+      - name: Sync locked environment
         run: |
+          set -euo pipefail
           uv python install 3.12
-          uv sync --locked --dev
+          uv sync --locked --all-extras --dev
 
-      - name: Static checks, tests and build
+      - name: Static, unit and package quality gates
         run: |
           set -euo pipefail
           uv run ruff check .
@@ -67,7 +76,7 @@ jobs:
           uv run pytest -q
           uv build
 
-      - name: CLI scope and DAG checks
+      - name: CLI, scope and DAG gates
         run: |
           set -euo pipefail
           uv run panfamflow --version
@@ -84,7 +93,7 @@ jobs:
             --dry-run \
             results/00_qc/qc.done
 
-      - name: Smart-resume integration test
+      - name: Execute first-run, automatic-skip and local-recovery test
         run: |
           set -euo pipefail
           rm -rf examples/toy/{results,work,logs,.snakemake,.panfamflow}
@@ -92,6 +101,7 @@ jobs:
             uv run --with 'snakemake==9.25.1' panfamflow run \
               -c examples/toy/config.yaml -m qc
           }
+
           run_qc
           audit='examples/toy/results/00_qc/input_audit.tsv'
           done_file='examples/toy/results/00_qc/qc.done'
@@ -100,15 +110,51 @@ jobs:
           audit_mtime=$(stat -c %Y "$audit")
           done_sha=$(sha256sum "$done_file" | awk '{print $1}')
           done_mtime=$(stat -c %Y "$done_file")
+
           sleep 1
           run_qc
           test "$audit_sha" = "$(sha256sum "$audit" | awk '{print $1}')"
           test "$audit_mtime" = "$(stat -c %Y "$audit")"
           test "$done_sha" = "$(sha256sum "$done_file" | awk '{print $1}')"
           test "$done_mtime" = "$(stat -c %Y "$done_file")"
+
           rm "$done_file"
           sleep 1
           run_qc
           test -s "$done_file"
           test "$audit_sha" = "$(sha256sum "$audit" | awk '{print $1}')"
           test "$audit_mtime" = "$(stat -c %Y "$audit")"
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          paths = sorted(Path("examples/toy/.panfamflow/provenance/runs").glob("*.json"))
+          records = [json.loads(path.read_text(encoding="utf-8")) for path in paths[-3:]]
+          if len(records) != 3:
+              raise RuntimeError(f"Expected three run records, found {len(records)}")
+          states = [(record.get("status"), record.get("exit_code")) for record in records]
+          if states != [("COMPLETED", 0)] * 3:
+              raise RuntimeError(f"Unexpected provenance states: {states}")
+          Path("ci-verification.txt").write_text(
+              "\n".join(
+                  [
+                      "PanFamFlow smart-resume verification",
+                      f"commit={__import__('os').environ.get('GITHUB_SHA', '')}",
+                      f"input_audit_sha256={__import__('os').popen('sha256sum examples/toy/results/00_qc/input_audit.tsv').read().split()[0]}",
+                      f"run_ids={','.join(record['run_id'] for record in records)}",
+                      "states=COMPLETED:0,COMPLETED:0,COMPLETED:0",
+                  ]
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload CI verification evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: panfamflow-ci-verification-${{ github.sha }}
+          path: PanFamFlow/ci-verification.txt
+          if-no-files-found: error
+          retention-days: 30

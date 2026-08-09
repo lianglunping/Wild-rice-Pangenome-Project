@@ -41,6 +41,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+  "biopython>=1.84,<2",
+  "matplotlib>=3.9,<4",
   "mypy>=1.17,<2",
   "pytest>=8,<10",
   "pytest-cov>=6,<8",

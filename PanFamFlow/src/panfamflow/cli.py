@@ -15,6 +15,13 @@ from rich.console import Console
 from rich.table import Table
 
 from panfamflow import __version__
+from panfamflow.benchmark import (
+    BenchmarkManifest,
+    audit_benchmark,
+    default_audit_output_dir,
+    initialize_benchmark,
+    write_benchmark_audit,
+)
 from panfamflow.config import (
     WorkflowConfig,
     load_config,
@@ -37,6 +44,13 @@ app = typer.Typer(
     add_completion=False,
     help="Configuration-driven target pan-gene-family analysis workflow.",
 )
+benchmark_app = typer.Typer(
+    name="benchmark",
+    no_args_is_help=True,
+    add_completion=False,
+    help="Initialize and audit fail-closed biological benchmark inputs.",
+)
+app.add_typer(benchmark_app, name="benchmark")
 console = Console()
 
 
@@ -449,6 +463,91 @@ def doctor() -> None:
         "Rule-specific tools are installed lazily by Snakemake Conda environments and are not "
         "expected in the launcher PATH."
     )
+
+
+@benchmark_app.command("init")
+def benchmark_init(
+    destination: Annotated[Path, typer.Argument(help="New benchmark workspace directory.")],
+) -> None:
+    """Create a non-destructive biological benchmark intake workspace."""
+
+    try:
+        written = initialize_benchmark(destination)
+    except (FileExistsError, NotADirectoryError, OSError) as error:
+        console.print(f"[bold red]Benchmark initialization error:[/bold red] {error}")
+        raise typer.Exit(code=2) from error
+    target = destination.expanduser().resolve()
+    console.print(f"Created benchmark workspace: [bold]{target}[/bold]")
+    for path in written:
+        console.print(f"  - {path.relative_to(target)}")
+    console.print(
+        "Next: freeze benchmark.yaml/species.tsv/manual truth set, then run "
+        "panfamflow benchmark audit."
+    )
+
+
+@benchmark_app.command("audit")
+def benchmark_audit(
+    manifest_path: Annotated[
+        Path,
+        typer.Option("--manifest", "-m", help="Path to benchmark.yaml."),
+    ] = Path("benchmark.yaml"),
+    output_dir: Annotated[
+        Path | None,
+        typer.Option("--output", "-o", help="New audit output directory."),
+    ] = None,
+    allow_blocked: Annotated[
+        bool,
+        typer.Option(
+            help="Write planning outputs and return success even when the gate is BLOCKED."
+        ),
+    ] = False,
+) -> None:
+    """Audit biological benchmark readiness and emit Chinese HTML plus machine outputs."""
+
+    try:
+        audit = audit_benchmark(manifest_path)
+        target = output_dir or default_audit_output_dir(manifest_path)
+        paths = write_benchmark_audit(audit, target)
+    except (FileNotFoundError, FileExistsError, ValueError, ValidationError, OSError) as error:
+        console.print(f"[bold red]Benchmark audit error:[/bold red] {error}")
+        raise typer.Exit(code=2) from error
+
+    table = Table(title="PanFamFlow biological benchmark gate")
+    table.add_column("Metric")
+    table.add_column("Value")
+    table.add_row("Overall status", audit.overall_status)
+    table.add_row("Blocking failures", str(audit.blocking_failures))
+    table.add_row("Warnings", str(audit.warnings))
+    table.add_row("Passed checks", str(audit.passed))
+    table.add_row("Manifest SHA256", audit.manifest_sha256)
+    console.print(table)
+    console.print(f"Chinese HTML: {paths['html']}")
+    console.print(f"Machine JSON: {paths['json']}")
+    console.print(f"TSV/XLSX: {paths['checks_tsv']} | {paths['xlsx']}")
+    if audit.overall_status == "BLOCKED" and not allow_blocked:
+        raise typer.Exit(code=2)
+
+
+@benchmark_app.command("schema")
+def benchmark_schema(
+    output: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Output benchmark JSON Schema path."),
+    ] = Path("panfamflow-benchmark.schema.json"),
+) -> None:
+    """Export the strict biological benchmark manifest JSON Schema."""
+
+    target = output.expanduser().resolve()
+    if target.exists():
+        console.print(f"[red]Refusing to overwrite:[/red] {target}")
+        raise typer.Exit(code=2)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        json.dumps(BenchmarkManifest.model_json_schema(), ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    console.print(f"Wrote benchmark schema: {target}")
 
 
 if __name__ == "__main__":

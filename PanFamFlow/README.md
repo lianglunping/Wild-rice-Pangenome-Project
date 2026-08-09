@@ -54,6 +54,7 @@ PanFamFlow 的输入是**已经组装并注释的 genome FASTA + GFF3**。OrthoF
 - **审计缺口可见**：保留拒绝候选、未进入所选 HOG 节点的家族成员和运行 provenance。
 - **发表型输出**：结构化结果 TSV + XLSX，图件 PDF + 高分辨率 PNG。
 - **本地与 HPC**：提供 local 和 SLURM profile。
+- **生物学启动门**：在真实分析前对目标家族冻结、5–10 个 assembled-genome panel、输入 SHA256 和人工正负例执行 fail-closed 审计。
 
 ## 总体数据流
 
@@ -85,7 +86,7 @@ flowchart LR
 在 PR 合并前，应显式克隆包含 PanFamFlow 的分支：
 
 ```bash
-git clone --branch feature/panfamflow-v0.1.1-resume \
+git clone --branch feature/panfamflow-v0.1.2-benchmark-gate \
   https://github.com/lianglunping/Wild-rice-Pangenome-Project.git
 cd Wild-rice-Pangenome-Project/PanFamFlow
 test -f pyproject.toml
@@ -172,6 +173,33 @@ uv run panfamflow run -c config.yaml
 ```text
 mamba run -n panfamflow-engine snakemake ...
 ```
+
+## 真实水稻生物学 benchmark 启动门
+
+软件 CI 通过只说明代码可执行，不能替代真实目标家族的生物学验收。新项目应先建立独立 benchmark 工作区：
+
+```bash
+uv run panfamflow benchmark init benchmarks/rice_pilot
+cd benchmarks/rice_pilot
+uv run panfamflow benchmark audit \
+  --manifest benchmark.yaml \
+  --output audits/intake_001 \
+  --allow-blocked
+```
+
+审计会同时输出：
+
+```text
+benchmark_readiness.tsv
+benchmark_readiness.xlsx
+benchmark_readiness.json
+benchmark_readiness.md
+benchmark_readiness.html
+input_files.tsv
+SHA256SUMS.tsv
+```
+
+中文 HTML 面向人工审阅，JSON/TSV 面向后续会话和自动化。默认采用 fail-closed 规则：目标家族和验收阈值未冻结、独立 assembled genomes 少于 5 个、四类输入缺失或 SHA256 不匹配、人工正负例不足时，状态保持 `BLOCKED`。同一参考坐标上的多个 BAM/VCF 属于 reference-aligned samples，不能充当多个 assembled genomes。详细口径见 [docs/BIOLOGICAL_BENCHMARK.md](docs/BIOLOGICAL_BENCHMARK.md)。
 
 ## 只运行部分分析
 

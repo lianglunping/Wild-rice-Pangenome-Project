@@ -1,0 +1,10 @@
+decision_id	topic	status	decision	evidence	owner	frozen_at_utc	impact_if_changed
+D001	Target family	UNRESOLVED					Family and all downstream modules become invalid.
+D002	Pfam/InterPro boundary	UNRESOLVED					Candidate set and precision/recall become invalid.
+D003	Genome panel	UNRESOLVED					Occupancy classes and rarefaction become invalid.
+D004	Canonical transcript rule	UNRESOLVED	longest_cds				Gene copy number and structure metrics may change.
+D005	HOG node	UNRESOLVED				Pan-family occupancy assignment may change.
+D006	Duplication outgroup	UNRESOLVED				TRD/DSD classification may change.
+D007	Promoter motif source	UNRESOLVED				Motif counts and classes may change.
+D008	Expression comparison design	UNRESOLVED				Cross-material expression conclusions may change.
+D009	Acceptance thresholds	UNRESOLVED				Readiness and benchmark pass/fail may change.

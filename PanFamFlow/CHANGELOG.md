@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Added a fail-closed `panfamflow benchmark` command group with non-destructive `init`, strict `audit`, and schema export commands.
+- Added pre-registration gates for target-family approval, 5–10 independent assembled genomes, version/coordinate metadata, four required input types, SHA256 matching, one representative genome, and manually reviewed positive/negative controls.
+- Added Chinese HTML plus JSON/Markdown/TSV/XLSX readiness reports and a checksum receipt.
+- Added a reusable rice pilot scaffold and regression tests proving that missing files, checksum drift, and reference-aligned samples block readiness.
+
 ## 0.1.1 - 2026-08-09
 - Added immutable `project.analysis_scope: target_pan_gene_family` validation and provenance fingerprinting.
 

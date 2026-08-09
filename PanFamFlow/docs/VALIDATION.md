@@ -33,6 +33,35 @@ three terminal provenance records with COMPLETED / exit code 0
 
 首次执行、自动跳过和局部恢复已经由 GitHub Actions run `31304925922` 实际验证；该运行还生成了非空的 verified-source artifact。长期 CI 会在每次相关提交和 PR 更新时重复执行同类门禁。
 
+清理后的精确提交 `60edf5504f0f2e7a80508ae5f84662deef6f5e37` 已由长期 CI push run `31305053638` 验证成功。
+
+## v0.1.2 benchmark-gate 开发验证
+
+在不修改 v0.1.1 基线的独立工作目录中，已使用 Python 3.13.5 执行：
+
+```text
+python -m compileall -q src tests
+PYTHONPATH=src pytest -q
+```
+
+结果：
+
+```text
+33 passed
+```
+
+新增回归覆盖：
+
+- benchmark 初始化拒绝覆盖非空目录；
+- 完整双基因组 fixture 达到 `READY`；
+- 缺失 genome/GFF3/protein/CDS 时保持 `BLOCKED`；
+- 输入内容发生 SHA256 漂移时保持 `BLOCKED`；
+- reference-aligned sample 不能替代 assembled genome；
+- 中文 HTML、JSON、TSV、XLSX 和 SHA256 receipt 均非空；
+- 规划期 `--allow-blocked` 不改变报告中的阻断状态。
+
+Ruff、mypy、wheel/sdist 和 benchmark CLI smoke test 由新分支长期 CI 在精确提交上复核。
+
 ## 研究范围验证
 
 标准配置固定为：

@@ -1,0 +1,36 @@
+schema_version: "1.0"
+project:
+  name: rice_target_family_pilot
+  analysis_scope: target_pan_gene_family
+  seed: 20260807
+  description: >-
+    Five-to-ten assembled and annotated rice genomes for a pre-registered
+    target pan-gene-family biological benchmark.
+
+family:
+  name: UNRESOLVED
+  approval_state: unresolved
+  pfam_ids: []
+  interpro_ids: []
+  hmm: references/family.hmm
+  reference_proteins: references/family_reference.pep.fa
+  manual_truth_set: manual_review/manual_truth_set.tsv
+  notes: >-
+    Do not infer the target family from the analysis template. Freeze the
+    family name, domain identifiers and evidence boundaries before running.
+
+panel:
+  species_table: species.tsv
+  min_genomes: 5
+  max_genomes: 10
+
+acceptance:
+  approval_state: unresolved
+  require_family_approved: true
+  require_sha256: true
+  require_manual_truth_set: true
+  min_positive_controls: 5
+  min_negative_controls: 5
+  require_representative: true
+  require_annotation_version: true
+  chromosome_level_policy: warn

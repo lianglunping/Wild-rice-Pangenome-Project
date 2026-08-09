@@ -64,6 +64,9 @@ packages = ["src/panfamflow"]
 include = [
   "src/panfamflow/**/*.py",
   "src/panfamflow/templates/*.yaml",
+  "src/panfamflow/templates/benchmark/**/*.yaml",
+  "src/panfamflow/templates/benchmark/**/*.tsv",
+  "src/panfamflow/templates/benchmark/**/*.md",
   "src/panfamflow/workflow/Snakefile",
   "src/panfamflow/workflow/rules/*.smk",
   "src/panfamflow/workflow/scripts/*.py",
@@ -84,6 +87,7 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/panfamflow/workflow/scripts/*.py" = ["E402", "F821", "T201"]
+"src/panfamflow/benchmark.py" = ["RUF001"]
 "tests/*.py" = ["S101"]
 
 [tool.mypy]

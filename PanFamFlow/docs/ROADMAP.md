@@ -2,7 +2,8 @@
 
 ## v0.1.x：工程稳定
 
-- 完成真实双物种和多物种 pilot。
+- 已实现真实生物学 benchmark 的 fail-closed 输入与预注册启动门。
+- 完成 5–10 个真实水稻 assembled genomes 和一个人工核验目标家族的端到端 pilot。
 - 记录每个 rule 的真实软件版本和命令清单。
 - 增加 Snakemake end-to-end toy execution（使用小型 mock/binary fixtures）。
 - 增加 GFF3 方言、gzipped input 和异常 ID 测试。

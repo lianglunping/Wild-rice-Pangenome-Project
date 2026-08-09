@@ -33,25 +33,51 @@ jobs:
           if not parts:
               raise RuntimeError("No staging parts were found")
 
-          # Each staging file was split on a 4-character Base64 boundary and may
-          # therefore contain its own terminal padding. Decode each part first,
-          # then concatenate the binary chunks. Concatenating the Base64 text
-          # directly causes `Excess data after padding`.
+          encoded = "".join(
+              "".join(part.read_text(encoding="ascii").split())
+              for part in parts
+          )
+
+          # The staged payload contains multiple independently Base64-encoded
+          # binary chunks. Padding can occur inside the concatenated text, so a
+          # single strict b64decode reports `Excess data after padding`. Split
+          # only after a complete padding run, then decode and concatenate the
+          # binary streams in file order.
+          streams: list[str] = []
+          start = 0
+          index = 0
+          while index < len(encoded):
+              if encoded[index] != "=":
+                  index += 1
+                  continue
+              end = index
+              while end + 1 < len(encoded) and encoded[end + 1] == "=":
+                  end += 1
+              streams.append(encoded[start : end + 1])
+              start = end + 1
+              index = end + 1
+          if start < len(encoded):
+              streams.append(encoded[start:])
+
           decoded_parts: list[bytes] = []
-          for part in parts:
-              encoded = "".join(part.read_text(encoding="ascii").split())
-              if len(encoded) % 4 != 0:
+          for stream_number, stream in enumerate(streams, start=1):
+              if len(stream) % 4:
+                  stream += "=" * (-len(stream) % 4)
+              try:
+                  decoded_parts.append(base64.b64decode(stream, validate=True))
+              except ValueError as error:
                   raise RuntimeError(
-                      f"Invalid Base64 length for {part.name}: {len(encoded)}"
-                  )
-              decoded_parts.append(base64.b64decode(encoded, validate=True))
+                      f"Invalid Base64 stream {stream_number} with length {len(stream)}"
+                  ) from error
 
           payload = b"".join(decoded_parts)
           expected_sha256 = "d70e5c6995f022ddfdd036b341ef8cf35861f4d7f24fc4c9640db1f45c43e32e"
           actual_sha256 = hashlib.sha256(payload).hexdigest()
           if actual_sha256 != expected_sha256:
               raise RuntimeError(
-                  f"Staging archive SHA256 mismatch: {actual_sha256} != {expected_sha256}"
+                  "Staging archive SHA256 mismatch: "
+                  f"{actual_sha256} != {expected_sha256}; "
+                  f"decoded_streams={len(streams)}"
               )
 
           archive.write_bytes(payload)

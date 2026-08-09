@@ -1,0 +1,187 @@
+name: Bootstrap PanFamFlow v0.1.1 resume branch
+
+on:
+  push:
+    branches:
+      - feature/panfamflow-v0.1.1-resume
+    paths:
+      - ".github/workflows/panfamflow-v0.1.1-bootstrap.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: panfamflow-v0.1.1-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  materialize-test-and-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+
+      - name: Download and verify staged source archive
+        env:
+          ARCHIVE_FILE_ID: "1p0HUZHr2ckfJB1kwPob_ir2ho46SwIki"
+          ARCHIVE_SHA256: "c4d685c5d0c7aa349af2aa1b07ef566f05fbf5d0ae461afe664212dc3af9cbca"
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import os
+          import urllib.request
+          from pathlib import Path
+
+          file_id = os.environ["ARCHIVE_FILE_ID"]
+          expected = os.environ["ARCHIVE_SHA256"]
+          destination = Path("/tmp/PanFamFlow-v0.1.1-staging.zip")
+          urls = [
+              f"https://drive.usercontent.google.com/download?id={file_id}&export=download&confirm=t",
+              f"https://drive.google.com/uc?export=download&id={file_id}&confirm=t",
+          ]
+
+          failures: list[str] = []
+          for url in urls:
+              try:
+                  request = urllib.request.Request(
+                      url,
+                      headers={"User-Agent": "PanFamFlow-bootstrap/0.1.1"},
+                  )
+                  with urllib.request.urlopen(request, timeout=120) as response:
+                      payload = response.read()
+                  observed = hashlib.sha256(payload).hexdigest()
+                  if observed == expected:
+                      destination.write_bytes(payload)
+                      print(f"Verified archive: {destination} ({len(payload)} bytes)")
+                      break
+                  failures.append(
+                      f"{url}: sha256={observed}, bytes={len(payload)}, prefix={payload[:32]!r}"
+                  )
+              except Exception as exc:  # noqa: BLE001
+                  failures.append(f"{url}: {type(exc).__name__}: {exc}")
+          else:
+              raise RuntimeError("Unable to retrieve verified archive:\n" + "\n".join(failures))
+          PY
+
+      - name: Extract archive without path traversal or links
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import stat
+          from pathlib import Path, PurePosixPath
+          from zipfile import ZipFile
+
+          root = Path.cwd().resolve()
+          archive = Path("/tmp/PanFamFlow-v0.1.1-staging.zip")
+          project = root / "PanFamFlow"
+          if project.exists():
+              raise RuntimeError(f"Refusing to overwrite existing project path: {project}")
+
+          with ZipFile(archive) as handle:
+              corrupt = handle.testzip()
+              if corrupt is not None:
+                  raise RuntimeError(f"Corrupt ZIP member: {corrupt}")
+              for member in handle.infolist():
+                  logical = PurePosixPath(member.filename)
+                  if logical.is_absolute() or ".." in logical.parts:
+                      raise RuntimeError(f"Unsafe archive path: {member.filename}")
+                  unix_mode = member.external_attr >> 16
+                  if stat.S_ISLNK(unix_mode):
+                      raise RuntimeError(f"Archive symlink is not allowed: {member.filename}")
+                  target = (root / member.filename).resolve()
+                  if not target.is_relative_to(root):
+                      raise RuntimeError(f"Archive member escapes repository: {member.filename}")
+              handle.extractall(root)
+
+          required = [
+              project / "pyproject.toml",
+              project / "src" / "panfamflow" / "cli.py",
+              project / "src" / "panfamflow" / "workflow" / "Snakefile",
+              project / "tests",
+          ]
+          missing = [str(path) for path in required if not path.exists()]
+          if missing:
+              raise RuntimeError(f"Archive is incomplete; missing: {missing}")
+          PY
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.3"
+          enable-cache: true
+          cache-dependency-glob: "PanFamFlow/uv.lock"
+
+      - name: Install Python and resolve environment
+        working-directory: PanFamFlow
+        run: |
+          set -euo pipefail
+          uv python install 3.12
+          uv lock
+          uv sync --locked --dev
+
+      - name: Format and lint
+        working-directory: PanFamFlow
+        run: |
+          set -euo pipefail
+          uv run ruff format .
+          uv run ruff check --fix .
+          uv run ruff format .
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Type check and unit tests
+        working-directory: PanFamFlow
+        run: |
+          set -euo pipefail
+          uv run mypy src/panfamflow
+          uv run pytest -q
+
+      - name: Build Python package
+        working-directory: PanFamFlow
+        run: uv build
+
+      - name: Validate CLI and smart-resume command construction
+        working-directory: PanFamFlow
+        run: |
+          set -euo pipefail
+          uv run panfamflow --version
+          uv run panfamflow validate -c examples/toy/config.yaml -m qc
+          uv run panfamflow plan -c examples/toy/config.yaml -m qc
+          uv run panfamflow status -c examples/toy/config.yaml -m qc
+
+      - name: Validate Snakemake workflow
+        working-directory: PanFamFlow
+        run: |
+          set -euo pipefail
+          uv run --with 'snakemake==9.25.1' snakemake \
+            --snakefile "${GITHUB_WORKSPACE}/PanFamFlow/src/panfamflow/workflow/Snakefile" \
+            --configfile "${GITHUB_WORKSPACE}/PanFamFlow/examples/toy/config.yaml" \
+            --directory "${GITHUB_WORKSPACE}/PanFamFlow/examples/toy" \
+            --lint
+          uv run --with 'snakemake==9.25.1' snakemake \
+            --snakefile "${GITHUB_WORKSPACE}/PanFamFlow/src/panfamflow/workflow/Snakefile" \
+            --configfile "${GITHUB_WORKSPACE}/PanFamFlow/examples/toy/config.yaml" \
+            --directory "${GITHUB_WORKSPACE}/PanFamFlow/examples/toy" \
+            --cores 2 \
+            --dry-run \
+            results/00_qc/qc.done
+
+      - name: Commit only verified project files
+        run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add PanFamFlow
+          if git diff --cached --quiet; then
+            echo "No verified project changes to commit."
+            exit 0
+          fi
+          git commit -m "feat: add PanFamFlow v0.1.1 smart resume"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

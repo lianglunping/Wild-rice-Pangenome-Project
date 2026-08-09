@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use PanFamFlow, cite this software and the underlying tools used by the enabled modules."
+title: "PanFamFlow"
+type: software
+version: 0.1.0
+date-released: 2026-08-08
+authors:
+  - family-names: "Liang"
+    given-names: "Lunping"
+license: MIT
+repository-code: "https://github.com/lianglunping/Wild-rice-Pangenome-Project"
+keywords:
+  - gene family
+  - pangenome
+  - comparative genomics
+  - Snakemake

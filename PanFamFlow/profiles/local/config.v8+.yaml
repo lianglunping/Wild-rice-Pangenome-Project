@@ -1,0 +1,7 @@
+cores: 8
+printshellcmds: true
+show-failed-logs: true
+rerun-incomplete: true
+latency-wait: 60
+software-deployment-method:
+  - conda

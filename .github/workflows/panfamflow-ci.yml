@@ -1,0 +1,74 @@
+name: PanFamFlow CI
+
+on:
+  pull_request:
+    paths:
+      - "PanFamFlow/**"
+      - ".github/workflows/panfamflow-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "PanFamFlow/**"
+      - ".github/workflows/panfamflow-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: PanFamFlow
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.32"
+          enable-cache: true
+          cache-dependency-glob: "PanFamFlow/pyproject.toml"
+
+      - name: Install Python
+        run: uv python install 3.12
+
+      - name: Resolve lockfile
+        run: uv lock
+
+      - name: Upload resolved uv.lock
+        uses: actions/upload-artifact@v7
+        with:
+          name: panfamflow-uv-lock
+          path: PanFamFlow/uv.lock
+          retention-days: 7
+
+      - name: Sync Python environment
+        run: uv sync --locked --all-extras --dev
+
+      - name: Ruff lint
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        run: uv run ruff format --check .
+
+      - name: Mypy
+        run: uv run mypy src/panfamflow
+
+      - name: Unit tests
+        run: uv run pytest -q
+
+      - name: Build wheel and source distribution
+        run: uv build
+
+      - name: Snakemake toy DAG dry-run
+        run: |
+          uv run --with 'snakemake>=9,<10' snakemake \
+            --snakefile "${GITHUB_WORKSPACE}/PanFamFlow/src/panfamflow/workflow/Snakefile" \
+            --configfile "${GITHUB_WORKSPACE}/PanFamFlow/examples/toy/config.yaml" \
+            --directory "${GITHUB_WORKSPACE}/PanFamFlow/examples/toy" \
+            --cores 2 \
+            --dry-run \
+            results/00_qc/input_audit.tsv

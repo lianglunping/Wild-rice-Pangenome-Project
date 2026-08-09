@@ -1,0 +1,19 @@
+executor: slurm
+jobs: 100
+printshellcmds: true
+show-failed-logs: true
+rerun-incomplete: true
+latency-wait: 120
+software-deployment-method:
+  - conda
+default-resources:
+  - mem_mb=8000
+  - runtime=240
+  - disk_mb=10000
+set-resources:
+  orthofinder:
+    mem_mb: 64000
+    runtime: 2880
+  family_phylogeny:
+    mem_mb: 32000
+    runtime: 1440

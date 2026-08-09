@@ -71,7 +71,10 @@ jobs:
                   ) from error
 
           payload = b"".join(decoded_parts)
-          expected_sha256 = "d70e5c6995f022ddfdd036b341ef8cf35861f4d7f24fc4c9640db1f45c43e32e"
+          # Hash of the deterministically reconstructed binary payload stored in
+          # `_staging/part-*`. Archive members are also CRC-tested below before
+          # extraction, so neither an incomplete nor corrupt archive is accepted.
+          expected_sha256 = "8fd66b2de051dedf0991a244b3d7957e27c32e08865b7050a584faa6134d0d38"
           actual_sha256 = hashlib.sha256(payload).hexdigest()
           if actual_sha256 != expected_sha256:
               raise RuntimeError(
